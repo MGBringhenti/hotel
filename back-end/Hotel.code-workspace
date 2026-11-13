@@ -1,0 +1,13 @@
+{
+    "folders": [
+        { "path": "cliente-service" },
+        { "path": "quarto-service" },
+        { "path": "reserva-service" },
+        { "path": "hotel-mcp" },
+        { "path": "notificacoes-service"}
+    ],
+    "settings": {
+        "java.import.maven.enabled": true,
+        "java.configuration.updateBuildConfiguration": "automatic"
+    }
+}

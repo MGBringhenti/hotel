@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "hotel": {
+      "type": "stdio",
+      "command": "java",
+      "args": [
+        "-jar",
+        "C:/Users/mgbri/OneDrive/Documentos/Hotel/hotel-mcp/target/hotel-mcp-0.0.1-SNAPSHOT.jar"
+      ],
+      "env": {
+        "HOTEL_API_TOKEN": "${env:HOTEL_API_TOKEN}"
+      }
+    }
+  }
+}
