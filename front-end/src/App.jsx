@@ -1,122 +1,129 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
-
-function App() {
-  const [count, setCount] = useState(0)
-
+import { useEffect, useState } from 'react'
+import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import Inicio from './pages/Inicio.jsx'
+import Login from './pages/Login.jsx'
+import Reservas from './pages/Reservas.jsx'
+import Disponibilidade from './pages/Disponibilidade.jsx'
+import Cadastros from './pages/Cadastros.jsx'
+import Senha from './pages/Senha.jsx'
+import { criarSessao } from './services/sessao.js'
+import { perfis } from './lib/formatacao.js'
+export default function App() {
+  const [sessao, setSessao] = useState(null)
+  const [aviso, setAviso] = useState('')
+  useEffect(() => {
+    function expirar() {
+      setSessao(null)
+      setAviso('Sua sessão expirou. Entre novamente para continuar.')
+    }
+    window.addEventListener('hotel:sessao-expirada', expirar)
+    const timer = sessao ? setTimeout(expirar, Math.max(0, sessao.expiraEm - Date.now())) : null
+    return () => {
+      window.removeEventListener('hotel:sessao-expirada', expirar)
+      clearTimeout(timer)
+    }
+  }, [sessao])
+  function entrar(dados) {
+    setSessao(criarSessao(dados))
+    setAviso('')
+  }
+  function sair() {
+    setSessao(null)
+    setAviso('Você saiu da sua conta.')
+  }
+  if (!sessao)
+    return (
+      <Routes>
+        <Route path="/login" element={<Login onLogin={entrar} aviso={aviso} />} />
+        <Route path="/recuperar-senha" element={<Senha key="recuperar" modo="recuperar" />} />
+        <Route path="/redefinir-senha" element={<Senha key="redefinir" modo="redefinir" />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    )
+  const equipe = sessao.funcao !== 'CLIENTE'
+  const admin = sessao.funcao === 'ADMIN'
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app-shell">
+      <a className="skip-link" href="#conteudo">
+        Pular para o conteúdo
+      </a>
+      <aside className="sidebar">
+        <Link to="/" className="brand">
+          Hotel<span>Estadias & hospitalidade</span>
+        </Link>
+        <nav aria-label="Menu principal">
+          <NavLink end to="/">
+            Início
+          </NavLink>
+          <NavLink to="/disponibilidade">Disponibilidade</NavLink>
+          <NavLink to="/reservas">{equipe ? 'Reservas' : 'Minhas reservas'}</NavLink>
+          <NavLink to="/quartos">Quartos</NavLink>
+          {equipe && (
+            <>
+              <span className="nav-group">Cadastros</span>
+              <NavLink to="/clientes">Clientes</NavLink>
+              <NavLink to="/tipos">Tipos de quarto</NavLink>
+            </>
+          )}
+          {admin && <NavLink to="/usuarios">Usuários</NavLink>}
+          <span className="nav-group">Seu acesso</span>
+          <NavLink to="/conta">Minha conta</NavLink>
+        </nav>
+        <div className="sidebar-footer">
+          <span>{perfis[sessao.funcao]}</span>
+          <button onClick={sair} className="logout">
+            Sair da conta
+          </button>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      </aside>
+      <div className="main-column">
+        <header className="topbar">
+          <span>Bem-vindo ao Hotel</span>
+          <span>{perfis[sessao.funcao]}</span>
+        </header>
+        <main id="conteudo" tabIndex={-1}>
+          <Routes>
+            <Route path="/" element={<Inicio sessao={sessao} />} />
+            <Route path="/reservas" element={<Reservas sessao={sessao} />} />
+            <Route path="/disponibilidade" element={<Disponibilidade sessao={sessao} />} />
+            <Route
+              path="/quartos"
+              element={<Cadastros key="quartos" tipo="quartos" sessao={sessao} />}
+            />
+            {equipe && (
+              <>
+                <Route
+                  path="/clientes"
+                  element={<Cadastros key="clientes" tipo="clientes" sessao={sessao} />}
+                />
+                <Route
+                  path="/tipos"
+                  element={<Cadastros key="tipos" tipo="tipos" sessao={sessao} />}
+                />
+              </>
+            )}
+            {admin && (
+              <Route
+                path="/usuarios"
+                element={<Cadastros key="usuarios" tipo="usuarios" sessao={sessao} />}
+              />
+            )}
+            <Route path="/conta" element={<Senha key="alterar" modo="alterar" sessao={sessao} />} />
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route
+              path="*"
+              element={
+                <section className="empty">
+                  <h1>Página indisponível</h1>
+                  <p>Este endereço não existe ou não está disponível para seu perfil.</p>
+                  <Link to="/">Voltar ao início</Link>
+                </section>
+              }
+            />
+          </Routes>
+        </main>
+        <footer className="app-footer">Hotel · Um lugar para chegar bem.</footer>
+      </div>
+    </div>
   )
 }
-
-export default App

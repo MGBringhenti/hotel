@@ -1,0 +1,11 @@
+.git
+**/node_modules
+**/target
+**/dist
+**/test-results
+**/playwright-report
+**/.env
+**/.env.*
+**/*.pem
+**/.idea
+**/.vscode

@@ -1,0 +1,250 @@
+name: hotel-completo
+
+x-java-env: &java-env
+  DB_USERNAME: hotel
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?Execute primeiro .\iniciar.ps1}
+  JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m"
+  SPRING_JPA_SHOW_SQL: "false"
+  FRONTEND_ORIGINS: "http://localhost:${HOTEL_PORT:-8080},http://127.0.0.1:${HOTEL_PORT:-8080}"
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+  SPRING_MAIL_HOST: mailpit
+  SPRING_MAIL_PORT: "1025"
+
+x-api: &api
+  restart: unless-stopped
+  init: true
+  healthcheck:
+    test: ["CMD", "java", "-Xms16m", "-Xmx32m", "-cp", "/app", "Healthcheck"]
+    interval: 20s
+    timeout: 8s
+    start_period: 90s
+    retries: 6
+
+services:
+  postgres:
+    image: postgres:18.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hotel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Execute primeiro .\iniciar.ps1}
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./docker/init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U hotel -d hotel_notificacoes"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  chaves:
+    build:
+      context: .
+      dockerfile: docker/Java.Dockerfile
+      target: chaves
+    restart: "no"
+    volumes:
+      - jwt_private:/keys/private
+      - jwt_public:/keys/public
+
+  kafka-volume:
+    image: apache/kafka:4.1.2
+    user: "0:0"
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["chown -R 1000:1000 /dados"]
+    volumes:
+      - kafka_data:/dados
+
+  kafka:
+    image: apache/kafka:4.1.2
+    hostname: kafka
+    depends_on:
+      kafka-volume:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: "CONTROLLER://:9093,INTERNAL://:19092"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:19092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --list >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      start_period: 40s
+      retries: 10
+
+  topicos:
+    image: apache/kafka:4.1.2
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic hotel.reservas.v1 --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic hotel.reservas.v1.DLT --partitions 3 --replication-factor 1
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - mailpit_data:/data
+
+  cliente-service:
+    <<: *api
+    build:
+      context: .
+      dockerfile: docker/Java.Dockerfile
+      args:
+        SERVICE: cliente-service
+    environment:
+      <<: *java-env
+      HEALTH_PORT: "9001"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hotel_clientes
+      SPRING_PROFILES_ACTIVE: bootstrap-admin
+      JWT_PRIVATE_KEY_LOCATION: file:/keys/private/private.pem
+      JWT_PUBLIC_KEY_LOCATION: file:/keys/public/public.pem
+      NOTIFICACOES_CLIENT_SECRET: ${NOTIFICACOES_CLIENT_SECRET:?Execute primeiro .\iniciar.ps1}
+      ADMIN_INICIAL_LOGIN: ${ADMIN_INICIAL_LOGIN:-admin}
+      ADMIN_INICIAL_SENHA: ${ADMIN_INICIAL_SENHA:?Execute primeiro .\iniciar.ps1}
+      ADMIN_INICIAL_EMAIL: ${ADMIN_INICIAL_EMAIL:-admin@hotel.test}
+    volumes:
+      - jwt_private:/keys/private:ro
+      - jwt_public:/keys/public:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chaves:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+
+  quarto-service:
+    <<: *api
+    build:
+      context: .
+      dockerfile: docker/Java.Dockerfile
+      args:
+        SERVICE: quarto-service
+    environment:
+      <<: *java-env
+      HEALTH_PORT: "9002"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hotel_quarto
+      JWT_PUBLIC_KEY_LOCATION: file:/keys/public/public.pem
+    volumes:
+      - jwt_public:/keys/public:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chaves:
+        condition: service_completed_successfully
+
+  reserva-service:
+    <<: *api
+    build:
+      context: .
+      dockerfile: docker/Java.Dockerfile
+      args:
+        SERVICE: reserva-service
+    environment:
+      <<: *java-env
+      HEALTH_PORT: "9003"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hotel_reservas
+      JWT_PUBLIC_KEY_LOCATION: file:/keys/public/public.pem
+      CLIENTE_SERVICE_URL: http://cliente-service:9001
+      QUARTO_SERVICE_URL: http://quarto-service:9002
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      OUTBOX_HABILITADO: "true"
+    volumes:
+      - jwt_public:/keys/public:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chaves:
+        condition: service_completed_successfully
+      cliente-service:
+        condition: service_healthy
+      quarto-service:
+        condition: service_healthy
+      topicos:
+        condition: service_completed_successfully
+
+  notificacoes-service:
+    restart: unless-stopped
+    init: true
+    build:
+      context: .
+      dockerfile: docker/Java.Dockerfile
+      args:
+        SERVICE: notificacoes-service
+    environment:
+      <<: *java-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hotel_notificacoes
+      CLIENTE_SERVICE_URL: http://cliente-service:9001
+      NOTIFICACOES_CLIENT_SECRET: ${NOTIFICACOES_CLIENT_SECRET:?Execute primeiro .\iniciar.ps1}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      NOTIFICACOES_ENVIO_HABILITADO: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      cliente-service:
+        condition: service_healthy
+      topicos:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./front-end
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HOTEL_PORT:-8080}:80"
+    depends_on:
+      cliente-service:
+        condition: service_healthy
+      quarto-service:
+        condition: service_healthy
+      reserva-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  kafka_data:
+  mailpit_data:
+  jwt_private:
+  jwt_public:
+
+
+

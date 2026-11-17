@@ -740,3 +740,6 @@ Como foi iniciado com --rm, o contêiner temporário é removido ao parar. Não 
 
 A aprovação destes 53 testes não encerra automaticamente os itens 6–8.
 
+
+## Ambiente completo no Docker
+Execute .\iniciar.ps1 na raiz. Instrucoes completas em [docker/README.md](docker/README.md). O Compose da raiz inicia front-end, APIs e infraestrutura com um PostgreSQL separado do instalado no Windows.

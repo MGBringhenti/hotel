@@ -1,0 +1,90 @@
+import { moeda, perfis } from './formatacao.js'
+export const catalogos = {
+  clientes: {
+    titulo: 'Clientes',
+    singular: 'cliente',
+    descricao: 'Cadastros e contatos de quem se hospeda com a gente.',
+    servico: 'clientes',
+    caminho: '/clientes',
+    campos: [
+      { nome: 'nome', label: 'Nome completo', maxLength: 50 },
+      { nome: 'cpf', label: 'CPF', maxLength: 14 },
+      { nome: 'email', label: 'E-mail', type: 'email', maxLength: 75 },
+      { nome: 'telefone', label: 'Telefone', type: 'tel', minLength: 10, maxLength: 15 },
+    ],
+    colunas: [
+      ['Nome', (c) => c.nome],
+      ['E-mail', (c) => c.email],
+      ['CPF', (c) => c.cpf],
+      ['Telefone', (c) => c.telefone],
+    ],
+  },
+  usuarios: {
+    titulo: 'Usuários',
+    singular: 'usuário',
+    descricao: 'Contas de acesso, perfis e recuperação de senha.',
+    servico: 'clientes',
+    caminho: '/usuarios',
+    campos: [
+      { nome: 'login', label: 'Login', maxLength: 75 },
+      { nome: 'emailRecuperacao', label: 'E-mail de recuperação', type: 'email', maxLength: 254 },
+      {
+        nome: 'senha',
+        label: 'Senha inicial',
+        type: 'password',
+        minLength: 8,
+        maxLength: 50,
+        criacao: true,
+      },
+      {
+        nome: 'funcao',
+        label: 'Perfil',
+        opcoes: ['CLIENTE', 'RECEPCIONISTA', 'ADMIN'],
+        criacao: true,
+      },
+    ],
+    colunas: [
+      ['Login', (u) => u.login],
+      ['E-mail de recuperação', (u) => u.emailRecuperacao || 'Não informado'],
+      ['Perfil', (u) => perfis[u.funcao]],
+    ],
+  },
+  quartos: {
+    titulo: 'Quartos',
+    singular: 'quarto',
+    descricao: 'Acomodações, capacidade e disponibilidade para novas estadias.',
+    servico: 'quartos',
+    caminho: '/quarto',
+    campos: [{ nome: 'numero', label: 'Número do quarto', type: 'number', min: 1, step: 1 }],
+    colunas: [
+      ['Quarto', (q) => q.numero],
+      ['Tipo', (q) => q.tipo.nome],
+      ['Capacidade', (q) => `${q.tipo.capacidade} pessoas`],
+      ['Diária', (q) => moeda(q.tipo.preco)],
+    ],
+  },
+  tipos: {
+    titulo: 'Tipos de quarto',
+    singular: 'tipo de quarto',
+    descricao: 'Categorias de acomodação e suas tarifas diárias.',
+    servico: 'quartos',
+    caminho: '/tipoQuarto',
+    campos: [
+      { nome: 'nome', label: 'Nome', maxLength: 50 },
+      { nome: 'capacidade', label: 'Capacidade', type: 'number', min: 1, step: 1 },
+      {
+        nome: 'preco',
+        label: 'Diária (R$)',
+        type: 'number',
+        min: 0.01,
+        max: 9999999999.99,
+        step: 0.01,
+      },
+    ],
+    colunas: [
+      ['Nome', (t) => t.nome],
+      ['Capacidade', (t) => `${t.capacidade} pessoas`],
+      ['Diária', (t) => moeda(t.preco)],
+    ],
+  },
+}
